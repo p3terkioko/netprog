@@ -269,8 +269,33 @@ void handle_user_input() {
                 if (!fgets(account_no, MAX_ACCT_LEN, stdin)) break;
                 trim(account_no); if (strcmp(account_no, "b") == 0) break;
 
+                printf("Enter PIN: ");
+                if (!fgets(pin, sizeof(pin), stdin)) break;
+                trim(pin); if (strcmp(pin, "b") == 0) break;
+
                 if (!is_valid_account_no(account_no)) {
                     printf("Invalid account number format.\n");
+                    wait_for_enter();
+                    break;
+                }
+
+                // Verify account number and pin
+                FILE* db = fopen(DB_FILENAME, "r");
+                bool found = false;
+                char line[MAX_LINE_LEN], file_acct[MAX_ACCT_LEN], file_pin[8];
+                if (db) {
+                    while (fgets(line, sizeof(line), db)) {
+                        if (sscanf(line, "%s %s", file_acct, file_pin) == 2 &&
+                            strcmp(file_acct, account_no) == 0 &&
+                            strcmp(file_pin, pin) == 0) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    fclose(db);
+                }
+                if (!found) {
+                    printf("Account number or PIN incorrect.\n");
                     wait_for_enter();
                     break;
                 }
@@ -541,7 +566,8 @@ bool get_balance(const char* account_no, double* balance) {
     bool found = false;
     lock_file(file, false); // lock for reading
     while (fgets(line, MAX_LINE_LEN, file)) {
-        if (sscanf(line, "%s %lf", file_acct, &file_balance) == 2) {
+        // Skip to the 6th field (balance)
+        if (sscanf(line, "%s %*s %*s %*s %*s %lf", file_acct, &file_balance) == 2) {
             if (strcmp(file_acct, account_no) == 0) {
                 *balance = file_balance;
                 found = true;
@@ -768,6 +794,7 @@ bool balance(const char* account_no, double* out_balance) {
     double file_balance;
     bool found = false;
     while (fgets(line, sizeof(line), file)) {
+        // Skip to the 6th field (balance)
         if (sscanf(line, "%s %*s %*s %*s %*s %lf", file_acct, &file_balance) == 2) {
             if (strcmp(file_acct, account_no) == 0) {
                 *out_balance = file_balance;
