@@ -13,9 +13,28 @@
 
 // Constants
 #define SERVER_PORT 8080
+#define MAX_ACCT_LEN 16
+#define MAX_AMT_LEN 16
+
+// Message operation codes
+#define OP_REGISTER "REGISTER"
+#define OP_DEPOSIT "DEPOSIT"
+#define OP_WITHDRAW "WITHDRAW"
+#define OP_CHECK "CHECK_BALANCE"
+#define OP_STATEMENT "GET_STATEMENT"
+#define OP_CLOSE "CLOSE_ACCOUNT"
+
+// Response codes
+#define RESP_OK "OK"
+#define RESP_ERROR "ERROR"
+#define RESP_ACCT_EXISTS "ACCOUNT_EXISTS"
+#define RESP_ACCT_NOT_FOUND "ACCOUNT_NOT_FOUND"
+#define RESP_INSUFFICIENT_FUNDS "INSUFFICIENT_FUNDS"
+#define RESP_INVALID_AMOUNT "INVALID_AMOUNT"
+#define RESP_INVALID_REQUEST "INVALID_REQUEST"
 
 // Message handling functions
-char *create_response(const char *status, double balance)
+char *create_response(const char *status, const char *message)
 {
     char *response = malloc(MAX_MSG_LEN);
     if (!response)
@@ -23,105 +42,160 @@ char *create_response(const char *status, double balance)
         fprintf(stderr, "Memory allocation failed\n");
         exit(EXIT_FAILURE);
     }
-    snprintf(response, MAX_MSG_LEN, "%s %.2f", status, balance);
+    snprintf(response, MAX_MSG_LEN, "%s %s", status, message);
     return response;
-}
-
-bool parse_message(const char *message, char *operation, char *account_no, double *amount)
-{
-    int result = sscanf(message, "%s %s %lf", operation, account_no, amount);
-    return (result >= 2); // At least operation and account_no were parsed
 }
 
 char *process_request(const char *request)
 {
     char operation[MAX_LINE_LEN];
     char account_no[MAX_ACCT_LEN];
+    char pin[8];
     double amount = 0;
+    char name[64], national_id[32], account_type[16];
+    char response_msg[MAX_MSG_LEN];
 
-    if (!parse_message(request, operation, account_no, &amount))
+    // Parse the operation type
+    if (sscanf(request, "%s", operation) != 1)
     {
-        return create_response(RESP_INVALID_REQUEST, 0);
+        return create_response(RESP_INVALID_REQUEST, "Invalid request format");
     }
 
     if (strcmp(operation, OP_REGISTER) == 0)
     {
-        if (account_exists(account_no))
+        if (sscanf(request, "%s %s %s %s %s %lf",
+                   operation, name, national_id, account_type, pin, &amount) != 6)
         {
-            return create_response(RESP_ACCT_EXISTS, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid registration format");
         }
-        if (add_account(account_no, 0))
+
+        if (amount < 1000)
         {
-            return create_response(RESP_OK, 0);
+            return create_response(RESP_INVALID_AMOUNT, "Initial deposit must be at least 1000");
         }
-        return create_response(RESP_ERROR, 0);
+
+        char acct_no[MAX_ACCT_LEN];
+        if (!open_account(name, national_id, account_type, acct_no, pin, amount))
+        {
+            return create_response(RESP_ERROR, "Account registration failed");
+        }
+
+        snprintf(response_msg, MAX_MSG_LEN, "Account created! Number: %s, PIN: %s", acct_no, pin);
+        return create_response(RESP_OK, response_msg);
     }
     else if (strcmp(operation, OP_DEPOSIT) == 0)
     {
-        double balance = 0;
-        if (!is_valid_amount(amount))
+        if (sscanf(request, "%s %s %s %lf", operation, account_no, pin, &amount) != 4)
         {
-            return create_response(RESP_INVALID_AMOUNT, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid deposit format");
         }
-        if (!account_exists(account_no))
+
+        if (!is_valid_account_no(account_no))
         {
-            return create_response(RESP_ACCT_NOT_FOUND, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid account number format");
         }
-        if (!get_balance(account_no, &balance))
+
+        if (amount < 500)
         {
-            return create_response(RESP_ERROR, 0);
+            return create_response(RESP_INVALID_AMOUNT, "Minimum deposit is 500");
         }
-        balance += amount;
-        if (update_balance(account_no, balance))
+
+        if (!deposit_extended(account_no, pin, amount))
         {
-            log_transaction(account_no, "DEPOSIT", amount, balance);
-            return create_response(RESP_OK, balance);
+            return create_response(RESP_ERROR, "Deposit failed. Check account number or PIN");
         }
-        return create_response(RESP_ERROR, 0);
+
+        return create_response(RESP_OK, "Deposit successful");
     }
     else if (strcmp(operation, OP_WITHDRAW) == 0)
     {
-        double balance = 0;
-        if (!is_valid_amount(amount))
+        if (sscanf(request, "%s %s %s %lf", operation, account_no, pin, &amount) != 4)
         {
-            return create_response(RESP_INVALID_AMOUNT, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid withdrawal format");
         }
-        if (!account_exists(account_no))
+
+        if (!is_valid_account_no(account_no))
         {
-            return create_response(RESP_ACCT_NOT_FOUND, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid account number format");
         }
-        if (!get_balance(account_no, &balance))
+
+        if (amount < 500)
         {
-            return create_response(RESP_ERROR, 0);
+            return create_response(RESP_INVALID_AMOUNT, "Minimum withdrawal is 500");
         }
-        if (balance < amount)
+
+        if (!withdraw_extended(account_no, pin, amount))
         {
-            return create_response(RESP_INSUFFICIENT_FUNDS, balance);
+            return create_response(RESP_ERROR, "Withdrawal failed. Check account number, PIN, or balance");
         }
-        balance -= amount;
-        if (update_balance(account_no, balance))
-        {
-            log_transaction(account_no, "WITHDRAW", amount, balance);
-            return create_response(RESP_OK, balance);
-        }
-        return create_response(RESP_ERROR, 0);
+
+        return create_response(RESP_OK, "Withdrawal successful");
     }
     else if (strcmp(operation, OP_CHECK) == 0)
     {
-        double balance = 0;
-        if (!account_exists(account_no))
+        if (sscanf(request, "%s %s %s", operation, account_no, pin) != 3)
         {
-            return create_response(RESP_ACCT_NOT_FOUND, 0);
+            return create_response(RESP_INVALID_REQUEST, "Invalid balance check format");
         }
-        if (get_balance(account_no, &balance))
+
+        if (!is_valid_account_no(account_no))
         {
-            return create_response(RESP_OK, balance);
+            return create_response(RESP_INVALID_REQUEST, "Invalid account number format");
         }
-        return create_response(RESP_ERROR, 0);
+
+        double balance;
+        if (!check_balance_extended(account_no, pin, &balance))
+        {
+            return create_response(RESP_ERROR, "Failed to check balance. Check account number or PIN");
+        }
+
+        snprintf(response_msg, MAX_MSG_LEN, "Current Balance: %.2f", balance);
+        return create_response(RESP_OK, response_msg);
+    }
+    else if (strcmp(operation, OP_STATEMENT) == 0)
+    {
+        if (sscanf(request, "%s %s %s", operation, account_no, pin) != 3)
+        {
+            return create_response(RESP_INVALID_REQUEST, "Invalid statement request format");
+        }
+
+        if (!is_valid_account_no(account_no))
+        {
+            return create_response(RESP_INVALID_REQUEST, "Invalid account number format");
+        }
+
+        char statement[1024];
+        if (!get_statement_extended(account_no, pin, statement, sizeof(statement)))
+        {
+            return create_response(RESP_ERROR, "Failed to get statement. Check account number or PIN");
+        }
+
+        return create_response(RESP_OK, statement);
+    }
+    else if (strcmp(operation, OP_CLOSE) == 0)
+    {
+        if (sscanf(request, "%s %s %s", operation, account_no, pin) != 3)
+        {
+            return create_response(RESP_INVALID_REQUEST, "Invalid close account format");
+        }
+
+        if (!is_valid_account_no(account_no))
+        {
+            return create_response(RESP_INVALID_REQUEST, "Invalid account number format");
+        }
+
+        double final_balance;
+        if (!close_account_extended(account_no, pin, &final_balance))
+        {
+            return create_response(RESP_ERROR, "Failed to close account. Check account number or PIN");
+        }
+
+        snprintf(response_msg, MAX_MSG_LEN, "Account closed successfully. Final balance: %.2f", final_balance);
+        return create_response(RESP_OK, response_msg);
     }
     else
     {
-        return create_response(RESP_INVALID_REQUEST, 0);
+        return create_response(RESP_INVALID_REQUEST, "Unknown operation");
     }
 }
 

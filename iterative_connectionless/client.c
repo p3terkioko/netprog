@@ -10,26 +10,9 @@
 #include "bank_utils.h"
 
 // Constants
-#define SERVER_IP "127.0.0.1" // localhost
-#define SERVER_PORT 8080
-#define MAX_MSG_LEN 256
+#define MAX_MSG_LEN 1024
 #define MAX_ACCT_LEN 16
 #define MAX_AMT_LEN 16
-
-// Message operation codes
-#define OP_REGISTER "REGISTER"
-#define OP_DEPOSIT "DEPOSIT"
-#define OP_WITHDRAW "WITHDRAW"
-#define OP_CHECK "CHECK_BALANCE"
-
-// Response codes
-#define RESP_OK "OK"
-#define RESP_ERROR "ERROR"
-#define RESP_ACCT_EXISTS "ACCOUNT_EXISTS"
-#define RESP_ACCT_NOT_FOUND "ACCOUNT_NOT_FOUND"
-#define RESP_INSUFFICIENT_FUNDS "INSUFFICIENT_FUNDS"
-#define RESP_INVALID_AMOUNT "INVALID_AMOUNT"
-#define RESP_INVALID_REQUEST "INVALID_REQUEST"
 
 // Function prototypes
 void clear_screen();
@@ -37,14 +20,13 @@ void display_menu();
 void handle_user_input();
 void clear_input_buffer();
 void wait_for_enter();
-char *create_message(const char *operation, const char *account_no, double amount);
-bool parse_response(const char *response, char *status, double *balance);
+void initialize_client(const char *ip, int port);
 
 // Global socket variables
 int sockfd;
 struct sockaddr_in server_addr;
 
-void initialize_client()
+void initialize_client(const char *ip, int port)
 {
     // Create UDP socket
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -56,10 +38,10 @@ void initialize_client()
     // Initialize server address structure
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(port);
 
     // Convert IP address from text to binary form
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0)
     {
         perror("Invalid address");
         exit(EXIT_FAILURE);
@@ -126,7 +108,9 @@ void wait_for_enter()
 void handle_user_input()
 {
     int choice;
+    char request[MAX_MSG_LEN];
     char account_no[MAX_ACCT_LEN], amount_str[MAX_AMT_LEN], pin[8];
+    char name[64], national_id[32], account_type[16];
     double amount;
 
     while (1)
@@ -153,8 +137,6 @@ void handle_user_input()
             clear_screen();
             printf("=== ACCOUNT REGISTRATION ===\n");
             printf("Type 'b' and press ENTER at any prompt to return to the main menu.\n");
-            char name[64], national_id[32], account_type[16], acct_no[MAX_ACCT_LEN], pin[8], deposit_str[32];
-            double initial_deposit = 0.0;
 
             printf("Enter Name: ");
             if (!fgets(name, sizeof(name), stdin))
@@ -178,26 +160,15 @@ void handle_user_input()
                 break;
 
             printf("Enter Initial Deposit (minimum 1000): ");
-            if (!fgets(deposit_str, sizeof(deposit_str), stdin))
+            if (!fgets(amount_str, MAX_AMT_LEN, stdin))
                 break;
-            trim(deposit_str);
-            if (strcmp(deposit_str, "b") == 0)
+            trim(amount_str);
+            if (strcmp(amount_str, "b") == 0)
                 break;
-            initial_deposit = atof(deposit_str);
+            amount = atof(amount_str);
 
-            if (initial_deposit < 1000)
-            {
-                printf("Initial deposit must be at least 1000.\n");
-            }
-            else if (!open_account(name, national_id, account_type, acct_no, pin, initial_deposit))
-            {
-                printf("Account registration failed.\n");
-            }
-            else
-            {
-                printf("Account created! Number: %s, PIN: %s\n", acct_no, pin);
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "REGISTER %s %s %s 0000 %.2f",
+                     name, national_id, account_type, amount);
             break;
         }
 
@@ -221,13 +192,6 @@ void handle_user_input()
             if (strcmp(pin, "b") == 0)
                 break;
 
-            if (!is_valid_account_no(account_no))
-            {
-                printf("Invalid account number format.\n");
-                wait_for_enter();
-                break;
-            }
-
             printf("Enter Amount (minimum 500): ");
             if (!fgets(amount_str, MAX_AMT_LEN, stdin))
                 break;
@@ -236,19 +200,8 @@ void handle_user_input()
                 break;
             amount = atof(amount_str);
 
-            if (amount < 500)
-            {
-                printf("Minimum deposit is 500.\n");
-            }
-            else if (!deposit_extended(account_no, pin, amount))
-            {
-                printf("Deposit failed. Check account number or PIN.\n");
-            }
-            else
-            {
-                printf("Deposit successful.\n");
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "DEPOSIT %s %s %.2f",
+                     account_no, pin, amount);
             break;
         }
 
@@ -272,14 +225,7 @@ void handle_user_input()
             if (strcmp(pin, "b") == 0)
                 break;
 
-            if (!is_valid_account_no(account_no))
-            {
-                printf("Invalid account number format.\n");
-                wait_for_enter();
-                break;
-            }
-
-            printf("Enter Amount (minimum 500, must leave at least 1000 in account): ");
+            printf("Enter Amount (minimum 500): ");
             if (!fgets(amount_str, MAX_AMT_LEN, stdin))
                 break;
             trim(amount_str);
@@ -287,19 +233,8 @@ void handle_user_input()
                 break;
             amount = atof(amount_str);
 
-            if (amount < 500)
-            {
-                printf("Minimum withdrawal is 500.\n");
-            }
-            else if (!withdraw_extended(account_no, pin, amount))
-            {
-                printf("Withdrawal failed. Check account number, PIN, or balance.\n");
-            }
-            else
-            {
-                printf("Withdrawal successful.\n");
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "WITHDRAW %s %s %.2f",
+                     account_no, pin, amount);
             break;
         }
 
@@ -323,23 +258,8 @@ void handle_user_input()
             if (strcmp(pin, "b") == 0)
                 break;
 
-            if (!is_valid_account_no(account_no))
-            {
-                printf("Invalid account number format.\n");
-                wait_for_enter();
-                break;
-            }
-
-            double balance;
-            if (!check_balance_extended(account_no, pin, &balance))
-            {
-                printf("Failed to check balance. Check account number or PIN.\n");
-            }
-            else
-            {
-                printf("Current Balance: %.2f\n", balance);
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "CHECK_BALANCE %s %s 0",
+                     account_no, pin);
             break;
         }
 
@@ -363,23 +283,8 @@ void handle_user_input()
             if (strcmp(pin, "b") == 0)
                 break;
 
-            if (!is_valid_account_no(account_no))
-            {
-                printf("Invalid account number format.\n");
-                wait_for_enter();
-                break;
-            }
-
-            char statement[1024];
-            if (!get_statement_extended(account_no, pin, statement, sizeof(statement)))
-            {
-                printf("Failed to get statement. Check account number or PIN.\n");
-            }
-            else
-            {
-                printf("\nAccount Statement:\n%s\n", statement);
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "GET_STATEMENT %s %s 0",
+                     account_no, pin);
             break;
         }
 
@@ -403,31 +308,45 @@ void handle_user_input()
             if (strcmp(pin, "b") == 0)
                 break;
 
-            if (!is_valid_account_no(account_no))
-            {
-                printf("Invalid account number format.\n");
-                wait_for_enter();
-                break;
-            }
-
-            double balance;
-            if (!close_account_extended(account_no, pin, &balance))
-            {
-                printf("Failed to close account. Check account number or PIN.\n");
-            }
-            else
-            {
-                printf("Account closed successfully.\n");
-                printf("Final balance returned: %.2f\n", balance);
-            }
-            wait_for_enter();
+            snprintf(request, MAX_MSG_LEN, "CLOSE_ACCOUNT %s %s 0",
+                     account_no, pin);
             break;
         }
 
         default:
             printf("Invalid choice. Please try again.\n");
             wait_for_enter();
+            continue;
         }
+
+        // Send request to server and get response
+        char *response = send_request(request);
+        if (response)
+        {
+            char status[32];
+            char message[MAX_MSG_LEN];
+            if (sscanf(response, "%s %[^\n]", status, message) == 2)
+            {
+                if (strcmp(status, "OK") == 0)
+                {
+                    printf("\n%s\n", message);
+                }
+                else
+                {
+                    printf("\nError: %s\n", message);
+                }
+            }
+            else
+            {
+                printf("\nError: Invalid response from server\n");
+            }
+            free(response);
+        }
+        else
+        {
+            printf("\nError: Failed to communicate with server\n");
+        }
+        wait_for_enter();
     }
 }
 
@@ -438,32 +357,18 @@ void clear_input_buffer()
         ;
 }
 
-char *create_message(const char *operation, const char *account_no, double amount)
+int main(int argc, char *argv[])
 {
-    static char message[MAX_MSG_LEN];
-    if (strcmp(operation, OP_REGISTER) == 0 || strcmp(operation, OP_CHECK) == 0)
+    if (argc != 3)
     {
-        snprintf(message, MAX_MSG_LEN, "%s %s", operation, account_no);
+        printf("Usage: %s <server_ip> <server_port>\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
-    else
-    {
-        snprintf(message, MAX_MSG_LEN, "%s %s %.2f", operation, account_no, amount);
-    }
-    return message;
-}
 
-bool parse_response(const char *response, char *status, double *balance)
-{
-    int result = sscanf(response, "%s %lf", status, balance);
-    return (result >= 1);
-}
-
-int main()
-{
     printf("Banking Client - UDP Version\n");
     printf("===========================\n\n");
 
-    initialize_client();
+    initialize_client(argv[1], atoi(argv[2]));
     handle_user_input();
 
     close(sockfd);

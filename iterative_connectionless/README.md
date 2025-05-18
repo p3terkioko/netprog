@@ -66,7 +66,13 @@ make clean
 2. In a separate terminal, start the client:
 
 ```bash
-./client
+./client <server_ip> <server_port>
+```
+
+For example, to connect to the default local server:
+
+```bash
+./client 127.0.0.1 8080
 ```
 
 ## Features
@@ -93,8 +99,8 @@ make clean
 ## Technical Details
 
 - Protocol: UDP (User Datagram Protocol)
-- Port: 8080
 - Default server address: 127.0.0.1 (localhost)
+- Default port: 8080
 - Maximum message length: 256 bytes
 - Maximum account number length: 16 characters
 
@@ -107,6 +113,8 @@ The system handles various error conditions:
 - Invalid amounts
 - Network errors
 - Authentication failures
+- Invalid command line arguments
+- Connection failures
 
 ## Dependencies
 
