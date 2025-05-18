@@ -10,8 +10,6 @@
 #include "../bank_utils.h"
 
 // Constants
-#define SERVER_IP "127.0.0.1" // localhost
-#define SERVER_PORT 8080
 #define MAX_MSG_LEN 256
 #define MAX_ACCT_LEN 16
 #define MAX_AMT_LEN 16
@@ -25,12 +23,13 @@ void wait_for_enter();
 char *create_message(const char *operation, const char *account_no, double amount);
 bool parse_response(const char *response, char *status, double *balance);
 bool send_request(const char *request, char *response, size_t response_size);
+void initialize_client(const char *ip, int port);
 
 // Global socket variables
 int sockfd;
 struct sockaddr_in server_addr;
 
-void initialize_client()
+void initialize_client(const char *ip, int port)
 {
     // Create TCP socket
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -42,10 +41,10 @@ void initialize_client()
     // Initialize server address structure
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT);
+    server_addr.sin_port = htons(port);
 
     // Convert IP address from text to binary form
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0)
     {
         perror("Invalid address");
         exit(EXIT_FAILURE);
@@ -464,12 +463,18 @@ void clear_input_buffer()
         ;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    if (argc != 3)
+    {
+        printf("Usage: %s <server_ip> <server_port>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
     printf("Banking Client - TCP Version\n");
     printf("===========================\n\n");
 
-    initialize_client();
+    initialize_client(argv[1], atoi(argv[2]));
     handle_user_input();
 
     close(sockfd);
