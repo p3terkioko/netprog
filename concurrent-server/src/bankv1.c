@@ -5,8 +5,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
-#include <signal.h>
+#include <sys/socket.h>
 
 #define DATA_FILE "data.txt"
 #define BUFFER_SIZE 1024
