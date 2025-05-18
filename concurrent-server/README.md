@@ -1,57 +1,93 @@
-# Concurrent Connection-Oriented Server
+# README.md
 
-This project implements a connection-oriented concurrent server using processes for Unix systems. The server listens for incoming client connections and forks a new process for each connection to handle client requests.
+# Concurrent TCP Banking Server
+
+This project implements a concurrent TCP banking server and client using POSIX APIs. The server listens for incoming connections and handles multiple clients simultaneously by forking new processes for each request. The client interacts with the server to perform various banking operations.
 
 ## Project Structure
 
 ```
 concurrent-server
 ├── src
-│   ├── server.c        # Implements the server functionality
-│   ├── client.c        # Implements the client application
-│   ├── common.h        # Contains common definitions and prototypes
-│   └── utils.c         # Contains utility functions
-├── Makefile             # Build script for compiling the project
-└── README.md            # Project documentation
+│   ├── server.c        # Concurrent TCP banking server implementation
+│   ├── client.c        # Client for the banking server
+│   ├── bankv1.c        # Business logic for banking operations
+│   ├── common.h        # Common definitions and function prototypes
+│   └── utils.h         # Utility function prototypes
+├── Makefile            # Build instructions
+└── README.md           # Project documentation
 ```
 
-## Compilation
+## Features
 
-To compile the project, navigate to the project directory and run:
+- **Server**:
+  - Listens on a configurable TCP port (default: 9000).
+  - Accepts incoming client connections.
+  - Forks a new process for each client request.
+  - Supports commands:
+    - `REGISTER <acct>`: Register a new account.
+    - `DEPOSIT <acct> <amt>`: Deposit an amount into an account.
+    - `WITHDRAW <acct> <amt>`: Withdraw an amount from an account.
+    - `CHECK_BALANCE <acct>`: Check the balance of an account.
+  - Uses file locking with `flock()` for serialized access to account data.
+  - Logs transactions to individual account files (`<acct>.txt`).
+  - Handles `SIGCHLD` to clean up zombie processes.
 
-```
-make
-```
+- **Client**:
+  - Connects to the banking server using the server IP and port.
+  - Presents a text menu for user interaction:
+    - Register
+    - Deposit
+    - Withdraw
+    - Check Balance
+    - Exit
+  - Reads user input, formats requests, and sends them to the server.
+  - Displays server responses and loops until the user chooses to exit.
 
-This will generate the server and client executables.
+## Setup Instructions
 
-## Running the Server
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd concurrent-server
+   ```
 
-To start the server, run:
+2. Build the project using the Makefile:
+   ```
+   make
+   ```
 
-```
-./server
-```
+3. Run the server:
+   ```
+   ./src/server
+   ```
 
-The server will listen for incoming connections on a predefined port.
+4. In a separate terminal, run the client:
+   ```
+   ./src/client <server_ip> <server_port>
+   ```
 
-## Running the Client
+## Usage Examples
 
-To connect to the server, run:
+- To register an account:
+  ```
+  REGISTER my_account
+  ```
 
-```
-./client
-```
+- To deposit money:
+  ```
+  DEPOSIT my_account 100
+  ```
 
-The client will send requests to the server and display the responses.
+- To withdraw money:
+  ```
+  WITHDRAW my_account 50
+  ```
 
-## Configuration
-
-Make sure to configure the server port and any other necessary parameters in the source files before running the server and client.
-
-## Dependencies
-
-This project requires a Unix-like environment with support for process management and sockets. Ensure that you have the necessary development tools installed.
+- To check balance:
+  ```
+  CHECK_BALANCE my_account
+  ```
 
 ## License
 

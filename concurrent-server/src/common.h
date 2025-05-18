@@ -1,24 +1,25 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-// Common definitions and constants
-#define MAX_BUFFER_SIZE 1024
-#define PORT 8080
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
 
-// Error codes
-#define SUCCESS 0
-#define ERROR -1
-#define ERR_CONNECTION_FAILED 1
-#define ERR_SEND_FAILED 2
-#define ERR_RECEIVE_FAILED 3
+#define SERVER_PORT 9000
+#define BUFFER_SIZE 1024
+#define DATA_FILE "data.txt"
 
-// Message formats
-#define MSG_HELLO "HELLO"
-#define MSG_GOODBYE "GOODBYE"
-
-// Function prototypes
-void handle_error(const char* msg);
-void trim_whitespace(char* str);
-void format_message(char* buffer, const char* format, ...);
+void register_account(const char *account);
+void deposit(const char *account, double amount);
+void withdraw(const char *account, double amount);
+double check_balance(const char *account);
+void log_transaction(const char *account, const char *transaction);
 
 #endif // COMMON_H
