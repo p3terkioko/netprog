@@ -54,7 +54,11 @@ int main(int argc, char *argv[]) {
     }
 
     // Send a request to the server
-    const char *request = "Hello, Server!";
+    char request[BUFFER_SIZE];
+    printf("Enter command (e.g., BALANCE, WITHDRAW 100): ");
+    fgets(request, sizeof(request), stdin);
+    request[strcspn(request, "\n")] = 0; // Remove newline
+
     send(sockfd, request, strlen(request), 0);
 
     // Handle server response

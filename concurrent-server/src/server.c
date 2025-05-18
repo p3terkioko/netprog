@@ -11,26 +11,32 @@
 #include "utils.h"
 
 #define BACKLOG 10
+#define BUFFER_SIZE 1024
 
-void handle_client(int client_socket) {
-    char buffer[MAX_BUFFER_SIZE];
-    int bytes_received;
+void handle_client(int client_sock) {
+    char buffer[BUFFER_SIZE];
+    int bytes_received = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_received <= 0) {
+        close(client_sock);
+        return;
+    }
+    buffer[bytes_received] = '\0';
 
-    // Handle client requests
-    while ((bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0)) > 0) {
-        buffer[bytes_received] = '\0'; // Null-terminate the received data
-        printf("Received: %s\n", buffer);
-
-        // Process the request and prepare a response
-        // (This is where the protocol handling would be implemented)
-        send(client_socket, buffer, bytes_received, 0); // Echo back for demonstration
+    // Example: Simple command handling
+    if (strncmp(buffer, "BALANCE", 7) == 0) {
+        // Replace this with your actual bank logic
+        const char *response = "Your balance is $1000";
+        send(client_sock, response, strlen(response), 0);
+    } else if (strncmp(buffer, "WITHDRAW", 8) == 0) {
+        // Example: parse amount and process withdrawal
+        const char *response = "Withdrawal processed";
+        send(client_sock, response, strlen(response), 0);
+    } else {
+        const char *response = "Unknown command";
+        send(client_sock, response, strlen(response), 0);
     }
 
-    if (bytes_received < 0) {
-        perror("recv");
-    }
-
-    close(client_socket);
+    close(client_sock);
 }
 
 int main(int argc, char *argv[]) {
