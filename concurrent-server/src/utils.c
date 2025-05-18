@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h> // Add this line
 
 // Function to handle errors and print a message
 void handle_error(const char *msg) {
