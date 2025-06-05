@@ -111,7 +111,7 @@ static void unlock_file(FILE* file) {
 
 // account_exists checks if an account number is present in the DB_FILENAME
 // This version doesn't check PIN, just existence.
-bool account_exists(const char* account_no) {
+static bool account_exists(const char* account_no) {
     FILE* file = fopen(DB_FILENAME, "r");
     if (!file) {
         return false; // File doesn't exist, so account cannot exist
