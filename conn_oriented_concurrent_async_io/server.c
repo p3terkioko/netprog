@@ -275,8 +275,6 @@ static void generate_account_no(char* acct_out) {
 }
 
 
-// Business Logic Functions (Copied from bankv1.c and adapted)
-
 bool open_account(const char* name, const char* national_id, const char* account_type, char* out_account_no, char* out_pin, double initial_deposit) {
     if (!name || !national_id || !account_type || !out_account_no || !out_pin) return false;
     if (strlen(name) == 0 || strlen(national_id) == 0 || strlen(account_type) == 0) return false;
