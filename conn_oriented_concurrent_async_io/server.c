@@ -1,5 +1,6 @@
+#define _GNU_SOURCE // Must be first
 #include "common.h"
-#include <stdio.h>
+#include <stdio.h>  // For fileno, fopen, etc.
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -16,10 +17,25 @@
 #define DB_FILENAME "data.txt"
 #define MAX_ARGS 5       // Max arguments for parse_message
 
-// Forward declarations for functions that might call each other or be used before definition
-static bool get_account_details(const char* account_no, const char* pin, char* name, char* national_id, char* account_type, double* balance_out);
-static bool verify_pin(const char* account_no, const char* pin);
-
+// Forward declarations (prototypes)
+char* handle_client_operation(const char* received_message);
+static void log_transaction(const char* account_no, const char* type, double amount, double balance_after);
+static char* create_response(const char* status, const char* arg1, const char* arg2);
+static bool parse_message(const char* message, char* operation, char args[MAX_ARGS][MAX_LINE_LEN], int* arg_count);
+static void trim(char* str);
+// Note: is_valid_account_no is not static in the current file, so no prototype here unless changed.
+// bool is_valid_account_no(const char* account_no);
+// bool is_valid_amount_str(const char* amount_str); // Not static either
+static void generate_pin(char* pin_out);
+static void generate_account_no(char* acct_out);
+static bool verify_pin(const char* account_no, const char* pin); // Already had this one
+static bool account_exists(const char* account_no);
+static bool get_balance_internal(const char* account_no, double* balance);
+static bool update_balance(const char* account_no, double new_balance);
+static bool add_account_record(const char* account_no, const char* pin, const char* name, const char* national_id, const char* account_type, double initial_deposit);
+static void lock_file(FILE* file, bool exclusive);
+static void unlock_file(FILE* file);
+// bool is_valid_amount(double amount); // Also not static
 
 // Utility Functions (Copied and some made static)
 static void trim(char* str) {
@@ -497,7 +513,7 @@ bool statement(const char* account_no, const char* pin, char transactions_out[5]
     fclose(tf);
 
     // Copy the last 5 (or fewer) lines to transactions_out
-    int start_index = (line_count < 5) ? 0 : line_count - 5; // Should be handled by circular buffer logic above
+    // int start_index = (line_count < 5) ? 0 : line_count - 5; // This variable is unused.
     int output_idx = 0;
     for (int i = 0; i < 5; ++i) { // Iterate through the buffer which contains last 5 lines
         if (strlen(all_lines_buffer[i]) > 0) {
