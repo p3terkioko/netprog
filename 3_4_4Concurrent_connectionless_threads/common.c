@@ -24,7 +24,7 @@ bool parse_message(const char* message, char* operation, char* account_no, doubl
     // Assume message format: OPERATION account_no [amount]
     // For REGISTER and CHECK_BALANCE, amount is optional
     // Try parsing with amount
-    result = sscanf(message, "%s %s %lf", operation, account_no, amount);
+    result = sscanf(message, "%15s %31s %lf", operation, account_no, amount);
     if (result >= 2) { // At least operation and account_no were parsed
         return true;
     }
