@@ -31,9 +31,14 @@ bool parse_message(const char* message, char* operation, char* account_no, doubl
     return false;
 }
 
-void create_response(const char* status, double balance, char* response_buffer, size_t buffer_size) {
-    // Format: STATUS balance
-    snprintf(response_buffer, buffer_size, "%s %.2f", status, balance);
+char* create_response(const char* status, double balance) {
+    char* response = malloc(MAX_MSG_LEN);
+    if (!response) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+    snprintf(response, MAX_MSG_LEN, "%s %.2f", status, balance);
+    return response;
 }
 
 bool parse_response(const char* response, char* status, double* balance) {
