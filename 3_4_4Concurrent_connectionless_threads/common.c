@@ -3,7 +3,11 @@
 // Message Functions Implementation
 
 char* create_message(const char* operation, const char* account_no, double amount) {
-    static char message[MAX_MSG_LEN];
+    char* message = malloc(MAX_MSG_LEN);
+    if (!message) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
     // Format: OPERATION account_no amount
     if (strcmp(operation, OP_REGISTER) == 0) {
         snprintf(message, MAX_MSG_LEN, "%s %s", operation, account_no);
