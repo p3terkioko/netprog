@@ -17,9 +17,7 @@
 #define MAX_AMT_LEN 16
 #define DB_FILENAME "data.txt"
 #define MAX_LINE_LEN 256
-#define MAX_MSG_LEN 256
-#define MAX_ACCT_LEN 16
-#define MAX_AMT_LEN 16
+// Lines 20-22 removed as they are redundant
 // Operation codes
 #define OP_REGISTER "REGISTER"
 #define OP_DEPOSIT "DEPOSIT"
