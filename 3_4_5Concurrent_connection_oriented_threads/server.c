@@ -1,3 +1,4 @@
+#include <sys/stat.h>  // For mkdir()
 #include "common.h"
 
 typedef struct {

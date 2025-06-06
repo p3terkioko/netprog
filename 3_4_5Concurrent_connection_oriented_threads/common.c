@@ -184,3 +184,114 @@ void trim_newline(char* str) {
         *newline = '\0';
     }
 }
+// Process a banking request
+char* process_request(const char* request) {
+    char operation[32];
+    char account_no[MAX_ACCT_LEN];
+    double amount = 0.0;
+    char* response;
+    Account account;
+
+    if (!parse_message(request, operation, account_no, &amount)) {
+        return strdup(RESP_INVALID_REQUEST);
+    }
+
+    if (strcmp(operation, OP_REGISTER) == 0) {
+        // Register new account
+        if (account_exists(account_no)) {
+            return strdup(RESP_ACCT_EXISTS);
+        }
+
+        Account new_account;
+        strncpy(new_account.account_no, account_no, MAX_ACCT_LEN);
+        generate_pin(new_account.pin);
+        new_account.balance = 0.0;
+        
+        if (add_account(&new_account)) {
+            return strdup(RESP_OK);
+        } else {
+            return strdup(RESP_ERROR);
+        }
+    }
+    else if (strcmp(operation, OP_DEPOSIT) == 0) {
+        // Deposit money
+        if (!account_exists(account_no)) {
+            return strdup(RESP_ACCT_NOT_FOUND);
+        }
+
+        if (!is_valid_amount(amount)) {
+            return strdup(RESP_INVALID_AMOUNT);
+        }
+
+        if (get_account(account_no, &account)) {
+            account.balance += amount;
+            if (update_account(&account)) {
+                log_transaction(account_no, "DEPOSIT", amount, account.balance);
+                return create_response(RESP_OK, account.balance);
+            }
+        }
+        return strdup(RESP_ERROR);
+    }
+    else if (strcmp(operation, OP_WITHDRAW) == 0) {
+        // Withdraw money
+        if (!account_exists(account_no)) {
+            return strdup(RESP_ACCT_NOT_FOUND);
+        }
+
+        if (!is_valid_amount(amount)) {
+            return strdup(RESP_INVALID_AMOUNT);
+        }
+
+        if (get_account(account_no, &account)) {
+            if (account.balance < amount) {
+                return strdup(RESP_INSUFFICIENT_FUNDS);
+            }
+            account.balance -= amount;
+            if (update_account(&account)) {
+                log_transaction(account_no, "WITHDRAW", amount, account.balance);
+                return create_response(RESP_OK, account.balance);
+            }
+        }
+        return strdup(RESP_ERROR);
+    }
+    else if (strcmp(operation, OP_CHECK) == 0) {
+        // Check balance
+        if (!account_exists(account_no)) {
+            return strdup(RESP_ACCT_NOT_FOUND);
+        }
+
+        if (get_account(account_no, &account)) {
+            return create_response(RESP_OK, account.balance);
+        }
+        return strdup(RESP_ERROR);
+    }
+
+    return strdup(RESP_INVALID_REQUEST);
+}
+// Create a message string
+char* create_message(const char* operation, const char* account_no, double amount) {
+    char* message = malloc(MAX_MSG_LEN);
+    if (amount > 0) {
+        snprintf(message, MAX_MSG_LEN, "%s %s %.2lf", operation, account_no, amount);
+    } else {
+        snprintf(message, MAX_MSG_LEN, "%s %s", operation, account_no);
+    }
+    return message;
+}
+
+// Parse a message string
+bool parse_message(const char* message, char* operation, char* account_no, double* amount) {
+    return sscanf(message, "%31s %15s %lf", operation, account_no, amount) >= 2;
+}
+
+// Create a response string
+char* create_response(const char* status, double balance) {
+    char* response = malloc(MAX_MSG_LEN);
+    snprintf(response, MAX_MSG_LEN, "%s %.2lf", status, balance);
+    return response;
+}
+
+// Parse a response string
+bool parse_response(const char* response, char* status, double* balance) {
+    return sscanf(response, "%31s %lf", status, balance) >= 1;
+}
