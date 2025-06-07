@@ -141,7 +141,7 @@
  
  // Business Logic Functions Implementation
  
- char* process_request(const char* request) {
+char* process_request_extended(const char* request) {
     static char response[2048];
     char msg_copy[MAX_MSG_LEN];
     strncpy(msg_copy, request, MAX_MSG_LEN - 1);
@@ -226,6 +226,7 @@
     snprintf(response, sizeof(response), "ERROR|Unsupported operation");
     return response;
 }
+
  
  char* register_account(const char* account_no) {
      if (account_exists(account_no)) {
